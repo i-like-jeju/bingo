@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>해마지 빙고 게임</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://developers.kakao.com/sdk/js/kakao.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    :root {
+      --bg: #16181c;
+      --surface: #212428;
+      --border: #3a3f47;
+      --text: #e6e8eb;
+      --text-muted: #8b9199;
+      --primary: #5b9bd5;
+      --primary-light: rgba(91, 155, 213, 0.25);
+      --kakao: #fee500;
+      --kakao-text: #191919;
+      --success: #5cb88a;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+    }
+    body {
+      margin: 0;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .container { max-width: 720px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.75rem; margin: 0 0 16px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 0.35rem; }
+    h1 .bingo-title-icon { width: 1.5em; height: 1.5em; flex-shrink: 0; }
+    h2 { font-size: 1.125rem; margin: 20px 0 12px; font-weight: 600; color: var(--text-muted); }
+    section { margin-bottom: 24px; }
+    label { display: block; font-size: 0.875rem; margin-bottom: 6px; color: var(--text-muted); }
+    input, select, button, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      font-size: 1rem;
+      margin-bottom: 12px;
+    }
+    input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 0.8; }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--primary-light);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      border: none;
+      transition: transform 0.05s ease, opacity 0.2s ease;
+    }
+    button:active { transform: scale(0.98); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-kakao { background: var(--kakao); color: var(--kakao-text); }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .btn-block { display: block; width: 100%; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface); padding: 6px; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); }
+    .tab-btn { flex: 1; padding: 12px 8px; border: none; border-radius: 8px; background: transparent; color: var(--text-muted); font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
+    .tab-btn:hover { background: var(--primary-light); color: var(--text); }
+    .tab-btn.active { background: var(--primary); color: white; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    @media (max-width: 480px) { .tab-btn { font-size: 0.75rem; padding: 10px 4px; } }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+    tr:last-child td { border-bottom: none; }
+    .medal { font-size: 1.25rem; }
+    .link-icon { color: var(--primary); text-decoration: none; font-size: 1.125rem; }
+    .link-icon:hover { text-decoration: underline; }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      z-index: 1000;
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .nav-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px; color: var(--primary); text-decoration: none; font-weight: 500; }
+    .nav-back:hover { text-decoration: underline; }
+    .hidden { display: none !important; }
+    #historyView .achievement-list { list-style: none; padding: 0; margin: 0; }
+    #historyView .achievement-list li {
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+    }
+    #historyView .achievement-list li:last-child { border-bottom: none; }
+    .share-bar { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .share-bar .btn-kakao { width: 100%; padding: 12px 18px; }
+    .participate-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+    .participate-row select, .participate-row input, .participate-row button { margin-bottom: 0; height: 44px; box-sizing: border-box; }
+    .participate-row select, .participate-row input { flex: 1; min-width: 120px; }
+    #participatePasswordWrap input { width: 100%; }
+    .participate-row button { flex-shrink: 0; }
+    .empty-state { text-align: center; padding: 32px 16px; color: var(--text-muted); }
+    select#gameSelect { cursor: pointer; }
+    .bingo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; margin-bottom: 12px; }
+    .bingo-grid input { margin-bottom: 0; text-align: center; min-height: 48px; padding: 14px 10px; }
+    .bingo-play-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin-top: 12px; }
+    .bingo-play-cell {
+      aspect-ratio: 1; min-height: 64px; border: 2px solid var(--border); border-radius: 8px;
+      background: var(--surface); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 8px; font-size: 0.9rem; cursor: pointer; transition: background 0.2s, border-color 0.2s;
+    }
+    .bingo-play-cell:hover { border-color: var(--primary); background: var(--primary-light); }
+    .bingo-play-cell.marked { background: #2d4a2e; border-color: #3d6b3f; color: #c8e6c9; }
+    .bingo-play-cell .cell-top { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px; }
+    .bingo-play-cell .cell-check { display: none; font-weight: bold; }
+    .bingo-play-cell.marked .cell-check { display: inline; }
+    .bingo-play-cell .cell-time { display: none; font-size: 0.65rem; opacity: 0.9; margin-top: 2px; }
+    .bingo-play-cell.marked .cell-time { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 메인 뷰 -->
+    <div id="mainView">
+      <h1><img src="assets/bingo-icon.svg" alt="" class="bingo-title-icon" aria-hidden="true">해마지 빙고 게임</h1>
+
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab-btn active" role="tab" id="tabBtn1" aria-selected="true" data-tab="1">멤버 등록</button>
+        <button type="button" class="tab-btn" role="tab" id="tabBtn2" aria-selected="false" data-tab="2">게임 등록</button>
+        <button type="button" class="tab-btn" role="tab" id="tabBtn3" aria-selected="false" data-tab="3">게임 선택 및 참여</button>
+      </div>
+
+      <div id="tabPanel1" class="tab-panel active" role="tabpanel">
+        <div class="card">
+          <form id="formMember">
+            <label>멤버 이름</label>
+            <input type="text" id="memberName" placeholder="이름" required>
+            <label>비밀번호</label>
+            <input type="password" id="memberPassword" placeholder="비밀번호" required>
+            <button type="submit" class="btn-primary btn-block">멤버 등록</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="tabPanel2" class="tab-panel" role="tabpanel">
+        <div class="card">
+          <form id="formGame">
+            <label>게임 이름</label>
+            <input type="text" id="gameTitle" placeholder="빙고 게임 이름" required>
+            <label>승리 조건 (완성할 줄 수)</label>
+            <input type="number" id="gameWinLines" min="1" max="8" value="1" required placeholder="1">
+            <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -8px 0 12px;">가로·세로·대각선 중 먼저 완성할 줄 수 (최대 8줄)입니다.</p>
+            <label>칸 내용 (3×3)</label>
+            <div class="bingo-grid" id="gameCellGrid">
+              <input type="text" id="gameCell00" placeholder="1" maxlength="20">
+              <input type="text" id="gameCell01" placeholder="2" maxlength="20">
+              <input type="text" id="gameCell02" placeholder="3" maxlength="20">
+              <input type="text" id="gameCell10" placeholder="4" maxlength="20">
+              <input type="text" id="gameCell11" placeholder="5" maxlength="20">
+              <input type="text" id="gameCell12" placeholder="6" maxlength="20">
+              <input type="text" id="gameCell20" placeholder="7" maxlength="20">
+              <input type="text" id="gameCell21" placeholder="8" maxlength="20">
+              <input type="text" id="gameCell22" placeholder="9" maxlength="20">
+            </div>
+            <div class="row">
+              <div>
+                <label>시작일</label>
+                <input type="date" id="gameStartDate" required>
+              </div>
+              <div>
+                <label>종료일</label>
+                <input type="date" id="gameEndDate" required>
+              </div>
+            </div>
+            <label>1등 상품</label>
+            <input type="text" id="prize1" placeholder="상품명">
+            <label>2등 상품</label>
+            <input type="text" id="prize2" placeholder="상품명">
+            <label>3등 상품</label>
+            <input type="text" id="prize3" placeholder="상품명">
+            <button type="submit" class="btn-primary btn-block">게임 등록</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="tabPanel3" class="tab-panel" role="tabpanel">
+        <div class="card">
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+              <label>빙고 게임 선택</label>
+              <select id="gameSelect">
+                <option value="">게임을 선택하세요</option>
+              </select>
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px; cursor: pointer;">
+              <input type="checkbox" id="gameFixCheckbox" style="width: auto; margin: 0;">
+              <span>고정</span>
+            </label>
+          </div>
+          <div id="participateBar" class="hidden" style="margin-top: 16px;">
+            <label>게임 참여 멤버</label>
+            <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -4px 0 8px;">선택한 멤버는 고정되어, 다음에 이 탭에 들어와도 자동 선택됩니다.</p>
+            <div class="participate-row">
+              <select id="participateMember">
+                <option value="">멤버 선택</option>
+              </select>
+              <div id="participatePasswordWrap" class="hidden" style="flex: 1; min-width: 120px;">
+                <input type="password" id="participatePassword" placeholder="비밀번호 확인" autocomplete="off">
+              </div>
+              <button type="button" class="btn-secondary" id="btnParticipate" style="width: auto;">참여하기</button>
+            </div>
+          </div>
+          <div id="bingoBoardSection" class="hidden" style="margin-top: 20px;">
+            <label>빙고판</label>
+            <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -4px 0 8px;">달성할 목표를 클릭하여 완료 표시합니다. 달성한 칸은 색으로 구분되며, 달성 시각이 표시됩니다.</p>
+            <div id="bingoBoardGrid" class="bingo-play-grid"></div>
+          </div>
+          <div id="rankingContainer" style="margin-top: 16px;">
+            <table id="rankingTable" class="hidden">
+              <thead>
+                <tr>
+                  <th>순위</th>
+                  <th>멤버</th>
+                  <th>빙고 달성</th>
+                  <th>목표 달성</th>
+                  <th>이력</th>
+                </tr>
+              </thead>
+              <tbody id="rankingBody"></tbody>
+            </table>
+            <div id="rankingEmpty" class="empty-state">게임을 선택하면 순위가 표시됩니다.</div>
+          </div>
+          <div id="shareBar" class="share-bar hidden">
+            <button type="button" class="btn-kakao" id="btnKakaoShare">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 3c-4.97 0-9 3.185-9 7.115 0 2.558 1.712 4.8 4.32 6.131l-.81 2.981c-.07.258.21.462.42.308l3.521-2.345c.504.088 1.021.14 1.549.14 4.97 0 9-3.185 9-7.115S16.97 3 12 3z"/>
+              </svg>
+              카톡 공유
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2.3 이력 조회 뷰 -->
+    <div id="historyView" class="hidden">
+      <a href="#" class="nav-back" id="navBack">← 메인 페이지로 돌아가기</a>
+      <h1 id="historyTitle">달성 이력</h1>
+      <p id="historyGameTitle" style="color: var(--text-muted); margin-bottom: 20px;"></p>
+      <ul class="achievement-list" id="achievementList"></ul>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="alert"></div>
+
+  <script>
+    const SUPABASE_URL = 'https://tsropshzbqrfladkgwsr.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_13HduBGv5qjNmCusvyfkMw_fcV1V6Jm';
+    let supabaseClient = null;
+    if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    // ---------- 상태 ----------
+    let games = [];
+    let members = [];
+    let selectedGameId = null;
+    let currentRanking = [];
+    let currentGameCells = [];
+
+    // ---------- DOM ----------
+    const formMember = document.getElementById('formMember');
+    const formGame = document.getElementById('formGame');
+    const gameSelect = document.getElementById('gameSelect');
+    const rankingTable = document.getElementById('rankingTable');
+    const rankingBody = document.getElementById('rankingBody');
+    const rankingEmpty = document.getElementById('rankingEmpty');
+    const shareBar = document.getElementById('shareBar');
+    const btnKakaoShare = document.getElementById('btnKakaoShare');
+    const mainView = document.getElementById('mainView');
+    const historyView = document.getElementById('historyView');
+    const navBack = document.getElementById('navBack');
+    const historyGameTitle = document.getElementById('historyGameTitle');
+    const historyTitle = document.getElementById('historyTitle');
+    const achievementList = document.getElementById('achievementList');
+    const toastEl = document.getElementById('toast');
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        document.getElementById('tabPanel' + tab).classList.add('active');
+      });
+    });
+
+    function showToast(message) {
+      toastEl.textContent = message;
+      toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), 2500);
+    }
+
+    function ensureSupabase() {
+      if (!supabaseClient) {
+        showToast('Supabase URL과 Anon Key를 설정해주세요.');
+        return false;
+      }
+      return true;
+    }
+
+    // ---------- 멤버 등록 ----------
+    formMember.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!ensureSupabase()) return;
+      const name = document.getElementById('memberName').value.trim();
+      const password = document.getElementById('memberPassword').value;
+      if (!name || !password) return;
+      const { error } = await supabaseClient.from('bingo_members').insert({ name, password });
+      if (error) {
+        showToast('저장 실패: ' + error.message);
+        return;
+      }
+      showToast('멤버가 등록되었습니다.');
+      formMember.reset();
+      await loadMembers();
+      fillParticipateMembers();
+    });
+
+    // ---------- 게임 등록 (격자 3×3 고정) ----------
+    formGame.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!ensureSupabase()) return;
+      const title = document.getElementById('gameTitle').value.trim();
+      const win_lines = Math.min(8, Math.max(1, parseInt(document.getElementById('gameWinLines').value, 10) || 1));
+      const start_date = document.getElementById('gameStartDate').value;
+      const end_date = document.getElementById('gameEndDate').value;
+      const prize1 = document.getElementById('prize1').value.trim();
+      const prize2 = document.getElementById('prize2').value.trim();
+      const prize3 = document.getElementById('prize3').value.trim();
+      const grid_size = 3;
+      const cellContents = [];
+      for (let r = 0; r < grid_size; r++) {
+        for (let c = 0; c < grid_size; c++) {
+          const v = document.getElementById(`gameCell${r}${c}`).value.trim();
+          cellContents.push(v || '');
+        }
+      }
+      const filled = cellContents.filter(Boolean).length;
+      if (filled !== 9) {
+        showToast('9개 칸을 모두 입력해주세요.');
+        return;
+      }
+      if (!title || !start_date || !end_date) return;
+      const { data: newGame, error: errGame } = await supabaseClient.from('bingo_games').insert({
+        title,
+        grid_size: 3,
+        win_lines,
+        start_date,
+        end_date,
+        prize1: prize1 || null,
+        prize2: prize2 || null,
+        prize3: prize3 || null
+      }).select('id').single();
+      if (errGame) {
+        showToast('저장 실패: ' + errGame.message);
+        return;
+      }
+      const gameId = newGame.id;
+      const cells = [];
+      for (let r = 0; r < grid_size; r++) {
+        for (let c = 0; c < grid_size; c++) {
+          cells.push({ game_id: gameId, row_index: r, col_index: c, content: cellContents[r * grid_size + c] });
+        }
+      }
+      const { error: errCells } = await supabaseClient.from('bingo_game_cells').insert(cells);
+      if (errCells) {
+        showToast('칸 저장 실패: ' + errCells.message);
+        return;
+      }
+      showToast('게임이 등록되었습니다.');
+      formGame.reset();
+      document.getElementById('gameWinLines').value = 1;
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) document.getElementById(`gameCell${r}${c}`).value = '';
+      loadGames();
+    });
+
+    // ---------- 데이터 로드 (필요한 데이터만 조회) ----------
+    async function loadGames() {
+      if (!supabaseClient) return;
+      const { data } = await supabaseClient.from('bingo_games').select('id, title, grid_size, win_lines, start_date, end_date, prize1, prize2, prize3').order('created_at', { ascending: false });
+      games = data || [];
+      gameSelect.innerHTML = '<option value="">게임을 선택하세요</option>' + games.map(g => {
+        const size = g.grid_size ?? 3;
+        return `<option value="${g.id}">${escapeHtml(g.title)} (${size}×${size})</option>`;
+      }).join('');
+      const fixedId = localStorage.getItem('bingo_fixed_game_id');
+      const fixedMemberId = fixedId ? localStorage.getItem('bingo_fixed_member_' + fixedId) : null;
+      const gameFixCheckbox = document.getElementById('gameFixCheckbox');
+      const hasFixedMember = !!(fixedId && fixedMemberId);
+      if (fixedId && games.some(g => String(g.id) === String(fixedId))) {
+        selectedGameId = fixedId;
+        gameSelect.value = fixedId;
+        if (gameFixCheckbox) gameFixCheckbox.checked = true;
+        gameSelect.dispatchEvent(new Event('change'));
+      } else {
+        if (selectedGameId && !games.find(g => g.id === selectedGameId)) selectedGameId = null;
+        gameSelect.value = selectedGameId || '';
+        if (gameFixCheckbox) gameFixCheckbox.checked = selectedGameId && String(fixedId) === String(selectedGameId);
+        if (selectedGameId) loadRanking(selectedGameId);
+      }
+      activateTab(hasFixedMember ? 3 : 1);
+    }
+
+    function activateTab(tabNum) {
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === String(tabNum));
+        b.setAttribute('aria-selected', b.dataset.tab === String(tabNum));
+      });
+      document.querySelectorAll('.tab-panel').forEach(p => {
+        p.classList.toggle('active', p.id === 'tabPanel' + tabNum);
+      });
+    }
+
+    async function loadMembers() {
+      if (!supabaseClient) return;
+      const { data } = await supabaseClient.from('bingo_members').select('id, name').order('name');
+      members = data || [];
+    }
+
+    async function loadRanking(gameId) {
+      if (!supabaseClient) return;
+      if (!gameId) { currentRanking = []; return; }
+      const { data: achievements } = await supabaseClient
+        .from('bingo_achievements')
+        .select('member_id, bingo_count, updated_at')
+        .eq('game_id', gameId);
+      if (!achievements || achievements.length === 0) {
+        rankingTable.classList.add('hidden');
+        rankingEmpty.classList.remove('hidden');
+        shareBar.classList.add('hidden');
+        currentRanking = [];
+        return;
+      }
+      const memberIds = [...new Set(achievements.map(a => a.member_id))];
+      const { data: memberRows } = await supabaseClient.from('bingo_members').select('id, name').in('id', memberIds);
+      const memberMap = (memberRows || []).reduce((acc, m) => { acc[m.id] = m.name; return acc; }, {});
+      const { data: markedRows } = await supabaseClient.from('bingo_marked_cells').select('member_id').eq('game_id', gameId);
+      const goalCountByMember = (markedRows || []).reduce((acc, row) => {
+        acc[row.member_id] = (acc[row.member_id] || 0) + 1;
+        return acc;
+      }, {});
+      currentRanking = achievements
+        .map(a => ({
+          member_id: a.member_id,
+          name: memberMap[a.member_id] || '-',
+          bingo_count: a.bingo_count || 0,
+          goal_count: goalCountByMember[a.member_id] || 0,
+          updated_at: a.updated_at
+        }))
+        .sort((a, b) => {
+          if (b.bingo_count !== a.bingo_count) return b.bingo_count - a.bingo_count;
+          return new Date(a.updated_at) - new Date(b.updated_at);
+        });
+      rankingEmpty.classList.add('hidden');
+      rankingTable.classList.remove('hidden');
+      shareBar.classList.remove('hidden');
+      document.getElementById('participateBar').classList.remove('hidden');
+      fillParticipateMembers();
+      const medals = ['🥇', '🥈', '🥉'];
+      rankingBody.innerHTML = currentRanking.map((r, i) => `
+        <tr>
+          <td>${medals[i] || i + 1}</td>
+          <td>${escapeHtml(r.name)}</td>
+          <td>${r.bingo_count}</td>
+          <td>${r.goal_count}</td>
+          <td><a href="#" class="link-icon" data-game-id="${gameId}" data-member-id="${r.member_id}" data-view-history aria-label="이력 조회">📋</a></td>
+        </tr>
+      `).join('');
+      rankingBody.querySelectorAll('[data-view-history]').forEach(el => {
+        el.addEventListener('click', (e) => { e.preventDefault(); openHistory(el.dataset.gameId, el.dataset.memberId); });
+      });
+    }
+
+    let lastPasswordRequestMemberId = null;
+    let verifiedMemberId = null; // 비밀번호 확인된 멤버만 목표 선택·고정 가능
+    document.getElementById('btnParticipate').addEventListener('click', async () => {
+      const memberId = document.getElementById('participateMember').value;
+      const passwordInput = document.getElementById('participatePassword');
+      const passwordWrap = document.getElementById('participatePasswordWrap');
+      const password = passwordInput ? passwordInput.value : '';
+      if (!selectedGameId || !memberId || !ensureSupabase()) return;
+      const isParticipant = currentRanking.some(r => r.member_id === Number(memberId));
+      if (passwordWrap && passwordWrap.classList.contains('hidden')) {
+        passwordWrap.classList.remove('hidden');
+        lastPasswordRequestMemberId = memberId;
+        if (passwordInput) passwordInput.focus();
+        showToast(isParticipant ? '비밀번호를 입력한 뒤 비밀번호 확인을 눌러주세요.' : '비밀번호를 입력한 뒤 다시 참여하기를 눌러주세요.');
+        return;
+      }
+      if (passwordWrap && !passwordWrap.classList.contains('hidden')) {
+        if (lastPasswordRequestMemberId === null || String(lastPasswordRequestMemberId) !== String(memberId)) {
+          passwordWrap.classList.add('hidden');
+          if (passwordInput) passwordInput.value = '';
+          lastPasswordRequestMemberId = null;
+          showToast('멤버를 변경하셨습니다. 비밀번호를 다시 입력해주세요.');
+          return;
+        }
+      }
+      if (!password) {
+        showToast('비밀번호를 입력해주세요.');
+        return;
+      }
+      const { data: member, error: errMember } = await supabaseClient.from('bingo_members').select('password').eq('id', memberId).single();
+      if (errMember || !member) {
+        showToast('멤버 정보를 확인할 수 없습니다.');
+        return;
+      }
+      if (member.password !== password) {
+        showToast('비밀번호가 일치하지 않습니다.');
+        return;
+      }
+      const isPart = currentRanking.some(r => r.member_id === Number(memberId));
+      if (isPart) {
+        verifiedMemberId = memberId;
+        if (selectedGameId) localStorage.setItem('bingo_fixed_member_' + selectedGameId, memberId);
+        if (passwordInput) passwordInput.value = '';
+        if (passwordWrap) passwordWrap.classList.add('hidden');
+        lastPasswordRequestMemberId = null;
+        updateBoardForMember(memberId);
+        showToast('비밀번호가 확인되었습니다. 목표를 선택할 수 있습니다.');
+        return;
+      }
+      const { error } = await supabaseClient.from('bingo_achievements').upsert(
+        { game_id: selectedGameId, member_id: memberId, bingo_count: 0 },
+        { onConflict: 'game_id,member_id' }
+      );
+      if (error) {
+        showToast('참여 실패: ' + error.message);
+        return;
+      }
+      verifiedMemberId = memberId;
+      if (selectedGameId) localStorage.setItem('bingo_fixed_member_' + selectedGameId, memberId);
+      showToast('참여했습니다.');
+      if (passwordInput) passwordInput.value = '';
+      if (passwordWrap) passwordWrap.classList.add('hidden');
+      lastPasswordRequestMemberId = null;
+      await loadRanking(selectedGameId);
+      fillParticipateMembers();
+      renderBingoBoardContent();
+      const partSel = document.getElementById('participateMember');
+      partSel.value = memberId;
+      partSel.dispatchEvent(new Event('change'));
+    });
+
+    async function incrementBingo(gameId, memberId) {
+      if (!supabaseClient) return;
+      const { data: cur } = await supabaseClient.from('bingo_achievements').select('bingo_count').eq('game_id', gameId).eq('member_id', memberId).single();
+      if (!cur) return;
+      const next = (cur.bingo_count || 0) + 1;
+      const { error } = await supabaseClient.from('bingo_achievements').update({ bingo_count: next, updated_at: new Date().toISOString() }).eq('game_id', gameId).eq('member_id', memberId);
+      if (error) {
+        showToast('반영 실패: ' + error.message);
+        return;
+      }
+      loadRanking(gameId);
+    }
+
+    gameSelect.addEventListener('change', async () => {
+      selectedGameId = gameSelect.value || null;
+      const gameFixCheckbox = document.getElementById('gameFixCheckbox');
+      if (gameFixCheckbox) {
+        if (selectedGameId) {
+          if (gameFixCheckbox.checked) localStorage.setItem('bingo_fixed_game_id', selectedGameId);
+        } else {
+          localStorage.removeItem('bingo_fixed_game_id');
+          gameFixCheckbox.checked = false;
+        }
+      }
+      const participateBar = document.getElementById('participateBar');
+      const bingoBoardSection = document.getElementById('bingoBoardSection');
+      if (!selectedGameId) {
+        participateBar.classList.add('hidden');
+        bingoBoardSection.classList.add('hidden');
+        loadRanking(null);
+        return;
+      }
+      participateBar.classList.remove('hidden');
+      bingoBoardSection.classList.remove('hidden');
+      if (!supabaseClient) return;
+      await loadRanking(selectedGameId);
+      const { data: cells } = await supabaseClient.from('bingo_game_cells').select('row_index, col_index, content').eq('game_id', selectedGameId).order('row_index').order('col_index');
+      currentGameCells = cells || [];
+      fillParticipateMembers();
+      const savedMemberId = selectedGameId ? localStorage.getItem('bingo_fixed_member_' + selectedGameId) : null;
+      const partSel = document.getElementById('participateMember');
+      if (savedMemberId && Array.from(partSel.options).some(o => o.value === savedMemberId)) partSel.value = savedMemberId;
+      renderBingoBoardContent();
+      partSel.dispatchEvent(new Event('change'));
+    });
+
+    document.getElementById('gameFixCheckbox').addEventListener('change', () => {
+      const gameFixCheckbox = document.getElementById('gameFixCheckbox');
+      if (gameFixCheckbox.checked && selectedGameId) {
+        localStorage.setItem('bingo_fixed_game_id', selectedGameId);
+      } else if (!gameFixCheckbox.checked) {
+        localStorage.removeItem('bingo_fixed_game_id');
+      }
+    });
+
+    document.getElementById('participateMember').addEventListener('change', () => {
+      const memberId = document.getElementById('participateMember').value;
+      if (memberId && String(verifiedMemberId) !== String(memberId)) verifiedMemberId = null;
+      const isParticipant = currentRanking.some(r => r.member_id === Number(memberId));
+      const btn = document.getElementById('btnParticipate');
+      btn.textContent = isParticipant ? '비밀번호 확인' : '참여하기';
+      btn.disabled = !selectedGameId || !memberId;
+      const pwWrap = document.getElementById('participatePasswordWrap');
+      const pwInput = document.getElementById('participatePassword');
+      if (pwInput) pwInput.value = '';
+      lastPasswordRequestMemberId = null;
+      if (pwWrap) {
+        if (isParticipant) {
+          pwWrap.classList.remove('hidden');
+          pwInput && pwInput.focus();
+          lastPasswordRequestMemberId = memberId;
+        } else {
+          pwWrap.classList.add('hidden');
+        }
+      }
+      updateBoardForMember(memberId);
+    });
+
+    function fillParticipateMembers() {
+      const sel = document.getElementById('participateMember');
+      sel.innerHTML = '<option value="">멤버 선택</option>' + (members || []).map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+    }
+
+    function formatMarkedAt(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const yy = String(d.getFullYear()).slice(-2);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      const ss = String(d.getSeconds()).padStart(2, '0');
+      return `${yy}.${mm}.${dd} ${hh}:${min}:${ss}`;
+    }
+
+    function renderBingoBoardContent() {
+      const grid = document.getElementById('bingoBoardGrid');
+      const cellMap = {};
+      (currentGameCells || []).forEach(c => { cellMap[`${c.row_index},${c.col_index}`] = c.content; });
+      grid.innerHTML = '';
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const key = `${r},${c}`;
+          const content = cellMap[key] || '';
+          const cell = document.createElement('div');
+          cell.className = 'bingo-play-cell';
+          cell.dataset.row = r;
+          cell.dataset.col = c;
+          cell.innerHTML = `<div class="cell-top"><span class="cell-text">${escapeHtml(content)}</span><span class="cell-check" aria-hidden="true"> ✓</span></div><span class="cell-time"></span>`;
+          grid.appendChild(cell);
+        }
+      }
+    }
+
+    async function updateBoardForMember(memberId) {
+      const grid = document.getElementById('bingoBoardGrid');
+      if (!selectedGameId || !memberId || !supabaseClient || !grid.children.length) return;
+      const isParticipant = currentRanking.some(r => r.member_id === Number(memberId));
+      if (!isParticipant) {
+        Array.from(grid.querySelectorAll('.bingo-play-cell')).forEach(cell => {
+          cell.classList.remove('marked');
+          cell.querySelector('.cell-time').textContent = '';
+          cell.onclick = null;
+        });
+        return;
+      }
+      const { data: marked } = await supabaseClient.from('bingo_marked_cells').select('row_index, col_index, marked_at').eq('game_id', selectedGameId).eq('member_id', memberId);
+      const markedMap = {};
+      (marked || []).forEach(m => { markedMap[`${m.row_index},${m.col_index}`] = m.marked_at; });
+      const inPeriod = isGameInPeriod(selectedGameId);
+      const isVerified = String(verifiedMemberId) === String(memberId);
+      Array.from(grid.querySelectorAll('.bingo-play-cell')).forEach(cell => {
+        const key = `${cell.dataset.row},${cell.dataset.col}`;
+        const at = markedMap[key];
+        cell.classList.toggle('marked', !!at);
+        cell.querySelector('.cell-time').textContent = at ? formatMarkedAt(at) : '';
+        if (inPeriod && isVerified) {
+          cell.onclick = () => toggleBoardCell(selectedGameId, memberId, parseInt(cell.dataset.row, 10), parseInt(cell.dataset.col, 10));
+          cell.style.cursor = 'pointer';
+        } else {
+          cell.onclick = inPeriod && memberId ? () => showToast('비밀번호를 확인한 뒤 목표를 선택할 수 있습니다.') : null;
+          cell.style.cursor = inPeriod ? 'pointer' : 'default';
+        }
+      });
+    }
+
+    function isGameInPeriod(gameId) {
+      const game = games.find(g => String(g.id) === String(gameId));
+      if (!game || !game.start_date || !game.end_date) return true;
+      const today = new Date().toISOString().slice(0, 10);
+      return game.start_date <= today && today <= game.end_date;
+    }
+
+    async function toggleBoardCell(gameId, memberId, rowIndex, colIndex) {
+      if (!supabaseClient) return;
+      if (!isGameInPeriod(gameId)) {
+        showToast('참여 기간이 지나 더 이상 달성할 수 없습니다.');
+        return;
+      }
+      const { data: existing } = await supabaseClient.from('bingo_marked_cells').select('id').eq('game_id', gameId).eq('member_id', memberId).eq('row_index', rowIndex).eq('col_index', colIndex).maybeSingle();
+      if (existing && existing.id) {
+        await supabaseClient.from('bingo_marked_cells').delete().eq('game_id', gameId).eq('member_id', memberId).eq('row_index', rowIndex).eq('col_index', colIndex);
+      } else {
+        await supabaseClient.from('bingo_marked_cells').insert({ game_id: gameId, member_id: memberId, row_index: rowIndex, col_index: colIndex });
+      }
+      const { data: allMarked } = await supabaseClient.from('bingo_marked_cells').select('row_index, col_index').eq('game_id', gameId).eq('member_id', memberId);
+      const markedSet = new Set((allMarked || []).map(m => `${m.row_index},${m.col_index}`));
+      const lines = countCompletedLines(markedSet);
+      await supabaseClient.from('bingo_achievements').update({ bingo_count: lines, updated_at: new Date().toISOString() }).eq('game_id', gameId).eq('member_id', memberId);
+      await loadRanking(gameId);
+      updateBoardForMember(String(memberId));
+    }
+
+    function countCompletedLines(markedSet) {
+      let n = 0;
+      for (let i = 0; i < 3; i++) {
+        if ([0,1,2].every(c => markedSet.has(`${i},${c}`))) n++;
+        if ([0,1,2].every(r => markedSet.has(`${r},${i}`))) n++;
+      }
+      if ([0,1,2].every(i => markedSet.has(`${i},${i}`))) n++;
+      if ([0,1,2].every(i => markedSet.has(`${i},${2-i}`))) n++;
+      return n;
+    }
+
+    // ---------- 이력 조회 & 네비게이션 ----------
+    function openHistory(gameId, memberId) {
+      const game = games.find(g => g.id === gameId);
+      historyGameTitle.textContent = game ? game.title : '';
+      mainView.classList.add('hidden');
+      historyView.classList.remove('hidden');
+      loadHistory(gameId, memberId || null);
+    }
+
+    async function loadHistory(gameId, memberId) {
+      achievementList.innerHTML = '';
+      if (!supabaseClient) return;
+      if (!memberId) {
+        if (historyTitle) historyTitle.textContent = '달성 이력';
+        const msg = document.createElement('li');
+        msg.style.color = 'var(--text-muted)';
+        msg.textContent = '순위에서 멤버 행의 📋를 클릭하면 해당 멤버의 달성 이력을 볼 수 있습니다.';
+        achievementList.appendChild(msg);
+        return;
+      }
+      const { data: memberRow } = await supabaseClient.from('bingo_members').select('name').eq('id', memberId).single();
+      const memberName = memberRow ? memberRow.name : '-';
+      if (historyTitle) historyTitle.textContent = memberName + ' 의 달성 이력';
+      const { data: markedRows } = await supabaseClient
+        .from('bingo_marked_cells')
+        .select('row_index, col_index, marked_at')
+        .eq('game_id', gameId)
+        .eq('member_id', memberId)
+        .order('marked_at', { ascending: false });
+      if (!markedRows || markedRows.length === 0) return;
+      const { data: cells } = await supabaseClient.from('bingo_game_cells').select('row_index, col_index, content').eq('game_id', gameId);
+      const contentMap = {};
+      (cells || []).forEach(c => { contentMap[`${c.row_index},${c.col_index}`] = c.content; });
+      markedRows.forEach(m => {
+        const content = contentMap[`${m.row_index},${m.col_index}`] || '-';
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${escapeHtml(content)}</span><time>${formatMarkedAt(m.marked_at)}</time>`;
+        achievementList.appendChild(li);
+      });
+    }
+
+    navBack.addEventListener('click', (e) => {
+      e.preventDefault();
+      historyView.classList.add('hidden');
+      mainView.classList.remove('hidden');
+    });
+
+    const KAKAO_JS_KEY = '41ec28afdb74a9849655aeb3dc4096aa';
+    if (KAKAO_JS_KEY) {
+      if (window.Kakao && !window.Kakao.isInitialized()) {
+        window.Kakao.init(KAKAO_JS_KEY);
+      }
+    }
+
+    btnKakaoShare.addEventListener('click', () => {
+      if (!window.Kakao || !window.Kakao.isInitialized()) {
+        showToast('카카오 JavaScript 키를 설정해주세요.');
+        return;
+      }
+      const now = new Date();
+      const game = games.find(g => g.id === selectedGameId);
+      const title = game ? game.title : '해마지 빙고 게임';
+      const dateTime = now.toLocaleString('ko-KR');
+      const desc = currentRanking.length
+        ? `빙고 달성: ${currentRanking[0].bingo_count}개 (${dateTime}) · 1위 ${currentRanking[0].name}`
+        : `공유 시각: ${dateTime}`;
+      window.Kakao.Share.sendDefault({
+        objectType: 'feed',
+        content: {
+          title: title,
+          description: desc,
+          link: { mobileWebUrl: window.location.href, webUrl: window.location.href }
+        },
+        buttons: [
+          { title: '앱에서 보기', link: { mobileWebUrl: window.location.href, webUrl: window.location.href } }
+        ]
+      });
+    });
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    // ---------- 초기 로드 ----------
+    loadGames();
+    loadMembers();
+  </script>
+</body>
+</html>
