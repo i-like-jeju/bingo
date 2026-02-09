@@ -9,18 +9,18 @@
   <style>
     * { box-sizing: border-box; }
     :root {
-      --bg: #16181c;
-      --surface: #212428;
-      --border: #3a3f47;
-      --text: #e6e8eb;
-      --text-muted: #8b9199;
-      --primary: #5b9bd5;
-      --primary-light: rgba(91, 155, 213, 0.25);
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4d;
+      --text: #e8ecf1;
+      --text-muted: #7c8ba3;
+      --primary: #14b8a6;
+      --primary-light: rgba(20, 184, 166, 0.22);
       --kakao: #fee500;
       --kakao-text: #191919;
-      --success: #5cb88a;
+      --success: #34d399;
       --radius: 12px;
-      --shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
     }
     body {
       margin: 0;
@@ -134,7 +134,7 @@
       text-align: center; padding: 8px; font-size: 0.9rem; cursor: pointer; transition: background 0.2s, border-color 0.2s;
     }
     .bingo-play-cell:hover { border-color: var(--primary); background: var(--primary-light); }
-    .bingo-play-cell.marked { background: #2d4a2e; border-color: #3d6b3f; color: #c8e6c9; }
+    .bingo-play-cell.marked { background: rgba(20, 184, 166, 0.2); border-color: var(--primary); color: #99f6e4; }
     .bingo-play-cell .cell-top { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 2px; }
     .bingo-play-cell .cell-check { display: none; font-weight: bold; }
     .bingo-play-cell.marked .cell-check { display: inline; }
@@ -209,17 +209,21 @@
 
       <div id="tabPanel3" class="tab-panel" role="tabpanel">
         <div class="card">
-          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 200px;">
-              <label>빙고 게임 선택</label>
-              <select id="gameSelect">
+          <div>
+            <label>빙고 게임 선택</label>
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px;">
+              <select id="gameSelect" style="flex: 1; min-width: 200px;">
                 <option value="">게임을 선택하세요</option>
               </select>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; white-space: nowrap;">
+                <input type="checkbox" id="gameFixCheckbox" style="width: auto; margin: 0;">
+                <span>고정</span>
+              </label>
             </div>
-            <label style="display: flex; align-items: center; gap: 6px; margin-bottom: 12px; cursor: pointer;">
-              <input type="checkbox" id="gameFixCheckbox" style="width: auto; margin: 0;">
-              <span>고정</span>
-            </label>
+          </div>
+          <div id="prizeSection" class="hidden" style="margin-top: 20px;">
+            <label>상품 정보</label>
+            <div id="prizeContent" class="card" style="margin-bottom: 0; padding: 14px 20px;"></div>
           </div>
           <div id="participateBar" class="hidden" style="margin-top: 16px;">
             <label>게임 참여 멤버</label>
@@ -229,9 +233,9 @@
                 <option value="">멤버 선택</option>
               </select>
               <div id="participatePasswordWrap" class="hidden" style="flex: 1; min-width: 120px;">
-                <input type="password" id="participatePassword" placeholder="비밀번호 확인" autocomplete="off">
+                <input type="password" id="participatePassword" placeholder="비밀번호" autocomplete="off">
               </div>
-              <button type="button" class="btn-secondary" id="btnParticipate" style="width: auto;">참여하기</button>
+              <button type="button" class="btn-secondary" id="btnParticipate" style="width: auto;">확인</button>
             </div>
           </div>
           <div id="bingoBoardSection" class="hidden" style="margin-top: 20px;">
@@ -470,22 +474,30 @@
       const memberIds = [...new Set(achievements.map(a => a.member_id))];
       const { data: memberRows } = await supabaseClient.from('bingo_members').select('id, name').in('id', memberIds);
       const memberMap = (memberRows || []).reduce((acc, m) => { acc[m.id] = m.name; return acc; }, {});
-      const { data: markedRows } = await supabaseClient.from('bingo_marked_cells').select('member_id').eq('game_id', gameId);
-      const goalCountByMember = (markedRows || []).reduce((acc, row) => {
-        acc[row.member_id] = (acc[row.member_id] || 0) + 1;
-        return acc;
-      }, {});
+      const { data: markedRows } = await supabaseClient.from('bingo_marked_cells').select('member_id, marked_at').eq('game_id', gameId);
+      const goalCountByMember = {};
+      const firstMarkedAtByMember = {};
+      (markedRows || []).forEach(row => {
+        goalCountByMember[row.member_id] = (goalCountByMember[row.member_id] || 0) + 1;
+        const t = row.marked_at ? new Date(row.marked_at).getTime() : null;
+        if (t != null && (firstMarkedAtByMember[row.member_id] == null || t < firstMarkedAtByMember[row.member_id])) {
+          firstMarkedAtByMember[row.member_id] = t;
+        }
+      });
+      const noTime = new Date('9999-12-31').getTime();
       currentRanking = achievements
         .map(a => ({
           member_id: a.member_id,
           name: memberMap[a.member_id] || '-',
           bingo_count: a.bingo_count || 0,
           goal_count: goalCountByMember[a.member_id] || 0,
+          first_marked_at: firstMarkedAtByMember[a.member_id] ?? noTime,
           updated_at: a.updated_at
         }))
         .sort((a, b) => {
           if (b.bingo_count !== a.bingo_count) return b.bingo_count - a.bingo_count;
-          return new Date(a.updated_at) - new Date(b.updated_at);
+          if (b.goal_count !== a.goal_count) return b.goal_count - a.goal_count;
+          return a.first_marked_at - b.first_marked_at;
         });
       rankingEmpty.classList.add('hidden');
       rankingTable.classList.remove('hidden');
@@ -520,7 +532,7 @@
         passwordWrap.classList.remove('hidden');
         lastPasswordRequestMemberId = memberId;
         if (passwordInput) passwordInput.focus();
-        showToast(isParticipant ? '비밀번호를 입력한 뒤 비밀번호 확인을 눌러주세요.' : '비밀번호를 입력한 뒤 다시 참여하기를 눌러주세요.');
+        showToast(isParticipant ? '비밀번호를 입력한 뒤 확인을 눌러주세요.' : '비밀번호를 입력한 뒤 확인을 눌러주세요.');
         return;
       }
       if (passwordWrap && !passwordWrap.classList.contains('hidden')) {
@@ -604,14 +616,35 @@
       }
       const participateBar = document.getElementById('participateBar');
       const bingoBoardSection = document.getElementById('bingoBoardSection');
+      const prizeSection = document.getElementById('prizeSection');
       if (!selectedGameId) {
         participateBar.classList.add('hidden');
         bingoBoardSection.classList.add('hidden');
+        if (prizeSection) prizeSection.classList.add('hidden');
         loadRanking(null);
         return;
       }
       participateBar.classList.remove('hidden');
       bingoBoardSection.classList.remove('hidden');
+      if (prizeSection) {
+        const game = games.find(g => String(g.id) === String(selectedGameId));
+        const prizeContent = document.getElementById('prizeContent');
+        const p1 = game && game.prize1 ? escapeHtml(game.prize1) : '';
+        const p2 = game && game.prize2 ? escapeHtml(game.prize2) : '';
+        const p3 = game && game.prize3 ? escapeHtml(game.prize3) : '';
+        if (p1 || p2 || p3) {
+          prizeSection.classList.remove('hidden');
+          if (prizeContent) {
+            let html = '';
+            if (p1) html += `<div style="margin-bottom: 6px;"><span style="color: var(--text-muted);">1등</span> ${p1}</div>`;
+            if (p2) html += `<div style="margin-bottom: 6px;"><span style="color: var(--text-muted);">2등</span> ${p2}</div>`;
+            if (p3) html += `<div><span style="color: var(--text-muted);">3등</span> ${p3}</div>`;
+            prizeContent.innerHTML = html;
+          }
+        } else {
+          prizeSection.classList.add('hidden');
+        }
+      }
       if (!supabaseClient) return;
       await loadRanking(selectedGameId);
       const { data: cells } = await supabaseClient.from('bingo_game_cells').select('row_index, col_index, content').eq('game_id', selectedGameId).order('row_index').order('col_index');
@@ -638,7 +671,7 @@
       if (memberId && String(verifiedMemberId) !== String(memberId)) verifiedMemberId = null;
       const isParticipant = currentRanking.some(r => r.member_id === Number(memberId));
       const btn = document.getElementById('btnParticipate');
-      btn.textContent = isParticipant ? '비밀번호 확인' : '참여하기';
+      btn.textContent = '확인';
       btn.disabled = !selectedGameId || !memberId;
       const pwWrap = document.getElementById('participatePasswordWrap');
       const pwInput = document.getElementById('participatePassword');
@@ -825,18 +858,34 @@
       const game = games.find(g => g.id === selectedGameId);
       const title = game ? game.title : '해마지 빙고 게임';
       const dateTime = now.toLocaleString('ko-KR');
-      const desc = currentRanking.length
-        ? `빙고 달성: ${currentRanking[0].bingo_count}개 (${dateTime}) · 1위 ${currentRanking[0].name}`
-        : `공유 시각: ${dateTime}`;
-      window.Kakao.Share.sendDefault({
-        objectType: 'feed',
-        content: {
-          title: title,
-          description: desc,
-          link: { mobileWebUrl: window.location.href, webUrl: window.location.href }
+      const shareMedals = ['🥇', '🥈', '🥉'];
+
+      let boardText = `${title}`;
+      boardText += `\n\n공유 시각: ${dateTime}`;
+      if (currentRanking.length) {
+        boardText += '\n\n[순위]';
+        currentRanking.forEach((r, i) => {
+          const rankLabel = shareMedals[i] || (i + 1) + '위';
+          boardText += `\n${rankLabel} ${r.name} - 빙고 ${r.bingo_count}개, 목표 ${r.goal_count}개`;
+        });
+      }
+      boardText += `\n\nhttps://i-like-jeju.github.io/bingo`;
+
+      Kakao.Link.sendDefault({
+        objectType: 'text',
+        text: boardText,
+        link: {
+          mobileWebUrl: 'https://i-like-jeju.github.io/bingo',
+          webUrl: 'https://i-like-jeju.github.io/bingo'
         },
         buttons: [
-          { title: '앱에서 보기', link: { mobileWebUrl: window.location.href, webUrl: window.location.href } }
+          {
+            title: '웹으로 이동',
+            link: {
+              mobileWebUrl: 'https://i-like-jeju.github.io/bingo',
+              webUrl: 'https://i-like-jeju.github.io/bingo'
+            }
+          }
         ]
       });
     });
