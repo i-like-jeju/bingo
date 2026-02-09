@@ -799,6 +799,7 @@
         if (!confirm('이 달성 목표를 삭제할까요?')) return;
         await supabaseClient.from('bingo_marked_cells').delete().eq('game_id', gameId).eq('member_id', memberId).eq('row_index', rowIndex).eq('col_index', colIndex);
       } else {
+        if (!confirm('이 목표를 달성으로 등록할까요?')) return;
         await supabaseClient.from('bingo_marked_cells').insert({ game_id: gameId, member_id: memberId, row_index: rowIndex, col_index: colIndex });
       }
       const { data: allMarked } = await supabaseClient.from('bingo_marked_cells').select('row_index, col_index').eq('game_id', gameId).eq('member_id', memberId);
