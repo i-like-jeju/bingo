@@ -856,11 +856,16 @@
       }
       const now = new Date();
       const game = games.find(g => g.id === selectedGameId);
-      const title = game ? game.title : '해마지 빙고 게임';
       const dateTime = now.toLocaleString('ko-KR');
       const shareMedals = ['🥇', '🥈', '🥉'];
 
-      let boardText = `${title}`;
+      let boardText = '해마지 빙고 게임';
+      if (game && game.title) boardText += `\n${game.title}`;
+      if (game && (game.start_date || game.end_date)) {
+        const start = game.start_date || '-';
+        const end = game.end_date || '-';
+        boardText += `\n기간: ${start} ~ ${end}`;
+      }
       boardText += `\n\n공유 시각: ${dateTime}`;
       if (currentRanking.length) {
         boardText += '\n\n[순위]';
