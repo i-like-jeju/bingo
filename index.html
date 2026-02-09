@@ -217,7 +217,7 @@
               </select>
               <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; white-space: nowrap;">
                 <input type="checkbox" id="gameFixCheckbox" style="width: auto; margin: 0;">
-                <span>고정</span>
+                <span>게임 고정</span>
               </label>
             </div>
           </div>
@@ -234,13 +234,13 @@
               </select>
               <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; white-space: nowrap;">
                 <input type="checkbox" id="memberFixCheckbox" style="width: auto; margin: 0;">
-                <span>선택한 멤버 고정</span>
+                <span>멤버 고정</span>
               </label>
             </div>
 
             <div class="participate-divider" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
               <label>비밀번호 확인</label>
-              <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -4px 0 8px;">목표를 선택·달성하려면 비밀번호를 확인해주세요. 아직 참여하지 않은 멤버는 확인 시 참여됩니다.</p>
+              <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -4px 0 8px;">목표를 선택·달성하려면 비밀번호를 확인해주세요. 아직 참여하지 않은 멤버는 참여하기를 눌러 참여합니다.</p>
               <div class="participate-row">
                 <div id="participatePasswordWrap" class="hidden" style="flex: 1; min-width: 120px;">
                   <input type="password" id="participatePassword" placeholder="비밀번호" autocomplete="off">
@@ -796,6 +796,7 @@
       }
       const { data: existing } = await supabaseClient.from('bingo_marked_cells').select('id').eq('game_id', gameId).eq('member_id', memberId).eq('row_index', rowIndex).eq('col_index', colIndex).maybeSingle();
       if (existing && existing.id) {
+        if (!confirm('이 달성 목표를 삭제할까요?')) return;
         await supabaseClient.from('bingo_marked_cells').delete().eq('game_id', gameId).eq('member_id', memberId).eq('row_index', rowIndex).eq('col_index', colIndex);
       } else {
         await supabaseClient.from('bingo_marked_cells').insert({ game_id: gameId, member_id: memberId, row_index: rowIndex, col_index: colIndex });
