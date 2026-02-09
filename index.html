@@ -227,15 +227,26 @@
           </div>
           <div id="participateBar" class="hidden" style="margin-top: 16px;">
             <label>게임 참여 멤버</label>
-            <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -4px 0 8px;">선택한 멤버는 고정되어, 다음에 이 탭에 들어와도 자동 선택됩니다.</p>
-            <div class="participate-row">
-              <select id="participateMember">
+            <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -4px 0 8px;">참여할 멤버를 선택하세요.</p>
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px;">
+              <select id="participateMember" style="flex: 1; min-width: 200px;">
                 <option value="">멤버 선택</option>
               </select>
-              <div id="participatePasswordWrap" class="hidden" style="flex: 1; min-width: 120px;">
-                <input type="password" id="participatePassword" placeholder="비밀번호" autocomplete="off">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 0; white-space: nowrap;">
+                <input type="checkbox" id="memberFixCheckbox" style="width: auto; margin: 0;">
+                <span>선택한 멤버 고정</span>
+              </label>
+            </div>
+
+            <div class="participate-divider" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+              <label>비밀번호 확인</label>
+              <p style="font-size: 0.8125rem; color: var(--text-muted); margin: -4px 0 8px;">목표를 선택·달성하려면 비밀번호를 확인해주세요. 아직 참여하지 않은 멤버는 확인 시 참여됩니다.</p>
+              <div class="participate-row">
+                <div id="participatePasswordWrap" class="hidden" style="flex: 1; min-width: 120px;">
+                  <input type="password" id="participatePassword" placeholder="비밀번호" autocomplete="off">
+                </div>
+                <button type="button" class="btn-secondary" id="btnParticipate" style="width: auto;">확인</button>
               </div>
-              <button type="button" class="btn-secondary" id="btnParticipate" style="width: auto;">확인</button>
             </div>
           </div>
           <div id="bingoBoardSection" class="hidden" style="margin-top: 20px;">
@@ -559,7 +570,6 @@
       const isPart = currentRanking.some(r => r.member_id === Number(memberId));
       if (isPart) {
         verifiedMemberId = memberId;
-        if (selectedGameId) localStorage.setItem('bingo_fixed_member_' + selectedGameId, memberId);
         if (passwordInput) passwordInput.value = '';
         if (passwordWrap) passwordWrap.classList.add('hidden');
         lastPasswordRequestMemberId = null;
@@ -576,7 +586,6 @@
         return;
       }
       verifiedMemberId = memberId;
-      if (selectedGameId) localStorage.setItem('bingo_fixed_member_' + selectedGameId, memberId);
       showToast('참여했습니다.');
       if (passwordInput) passwordInput.value = '';
       if (passwordWrap) passwordWrap.classList.add('hidden');
@@ -670,7 +679,7 @@
       if (memberId && String(verifiedMemberId) !== String(memberId)) verifiedMemberId = null;
       const isParticipant = currentRanking.some(r => r.member_id === Number(memberId));
       const btn = document.getElementById('btnParticipate');
-      btn.textContent = '확인';
+      btn.textContent = isParticipant ? '확인' : '참여하기';
       btn.disabled = !selectedGameId || !memberId;
       const pwWrap = document.getElementById('participatePasswordWrap');
       const pwInput = document.getElementById('participatePassword');
@@ -685,7 +694,23 @@
           pwWrap.classList.add('hidden');
         }
       }
+      const memberFixCheckbox = document.getElementById('memberFixCheckbox');
+      if (memberFixCheckbox) {
+        memberFixCheckbox.checked = !!(selectedGameId && memberId && localStorage.getItem('bingo_fixed_member_' + selectedGameId) === memberId);
+        memberFixCheckbox.disabled = !selectedGameId || !memberId;
+      }
       updateBoardForMember(memberId);
+    });
+
+    document.getElementById('memberFixCheckbox').addEventListener('change', () => {
+      const memberFixCheckbox = document.getElementById('memberFixCheckbox');
+      const memberId = document.getElementById('participateMember').value;
+      if (!selectedGameId) return;
+      if (memberFixCheckbox.checked && memberId) {
+        localStorage.setItem('bingo_fixed_member_' + selectedGameId, memberId);
+      } else {
+        localStorage.removeItem('bingo_fixed_member_' + selectedGameId);
+      }
     });
 
     function fillParticipateMembers() {
