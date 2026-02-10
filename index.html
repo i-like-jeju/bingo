@@ -356,6 +356,11 @@
       const name = document.getElementById('memberName').value.trim();
       const password = document.getElementById('memberPassword').value;
       if (!name || !password) return;
+      const { data: existing } = await supabaseClient.from('bingo_members').select('id').eq('name', name).maybeSingle();
+      if (existing) {
+        showToast('이미 동일한 이름의 멤버가 등록되어 있습니다.');
+        return;
+      }
       const { error } = await supabaseClient.from('bingo_members').insert({ name, password });
       if (error) {
         showToast('저장 실패: ' + error.message);
